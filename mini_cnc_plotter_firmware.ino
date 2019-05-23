@@ -50,7 +50,7 @@ struct point actuatorPos;
 
 //  Drawing settings, should be OK
 float StepInc = 1;
-int StepDelay = 732;              //12; //24;
+int StepDelay = 732;            //in microsecond
 int LineDelay = 50;             //Delay entre uma linha e outra
 int penDelay = 200;             //Delay ao abaixar a caneta
 
@@ -77,15 +77,10 @@ float Zpos = Zmax;
 boolean verbose = false;
 
 //  Needs to interpret 
-//  G1 for moving
 //  G4 P300 (wait 150ms)
-//  M300 S30 (pen down)
-//  M300 S50 (pen up)
-//  Discard anything with a (
-//  Discard any other command!
 
 /**********************
- * void setup() - Initialisations
+ * void setup() - Initializations
  ***********************/
 void setup() {
   //  Setup
@@ -108,7 +103,7 @@ void setup() {
   myStepperY.setSpeed(128);
   
   //Giovani Modifications
-  //  Set & move to initial default position
+  //Set & move to initial default position
   goToOrigin();
 
   //  Notifications!!!
