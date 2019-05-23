@@ -1,3 +1,4 @@
+
 /* 
  Mini CNC Plotter firmware, based in TinyCNC https://github.com/MakerBlock/TinyCNC-Sketches
  Send GCODE to this Sketch using gctrl.pde https://github.com/damellis/gctrl
@@ -7,26 +8,35 @@
   */
 
 #include <Servo.h>
-#include <Stepper.h>
+#include <AFMotor.h>                        //Modulo Adafruit Motor
 
 #define LINE_BUFFER_LENGTH 512
 
+char STEP = MICROSTEP;                      //Setup step
+
 // Servo position for Up and Down 
-const int penZUp = 40;
+const int penZUp = 128;
 const int penZDown = 85;
-
-// Servo on PWM pin 6
-const int penServoPin = 6;
-
-// Should be right for DVD steppers, but is not too important here
-const int stepsPerRevolution = 20; 
 
 // create servo object to control a servo 
 Servo penServo;  
 
-// Initialize steppers for X- and Y-axis using this Arduino pins for the L293D H-bridge
-Stepper myStepperY(stepsPerRevolution, 2,3,4,5);            
-Stepper myStepperX(stepsPerRevolution, 8,9,10,11);  
+// Servo on PWM pin 10
+const int penServoPin = 10;
+
+//Giovani Modifications
+// Endstop X on pin 14
+const int endStopX = 14;
+
+// Endstop Y on pin 15
+const int endStopY = 15;
+
+// Should be right for DVD steppers, but is not too important here
+const int stepsPerRevolution = 20;
+
+// Initialize steppers for X- and Y-axis using this Arduino pins for the Adafruit Motor Module
+AF_Stepper myStepperY(stepsPerRevolution,1);            
+AF_Stepper myStepperX(stepsPerRevolution,2);  
 
 /* Structures, global variables    */
 struct point { 
@@ -40,22 +50,22 @@ struct point actuatorPos;
 
 //  Drawing settings, should be OK
 float StepInc = 1;
-int StepDelay = 0;
-int LineDelay = 50;
-int penDelay = 50;
+int StepDelay = 732;            //in microsecond
+int LineDelay = 50;             //Delay entre uma linha e outra
+int penDelay = 200;             //Delay ao abaixar a caneta
 
 // Motor steps to go 1 millimeter.
 // Use test sketch to go 100 steps. Measure the length of line. 
 // Calculate steps per mm. Enter here.
-float StepsPerMillimeterX = 6.0;
-float StepsPerMillimeterY = 6.0;
+float StepsPerMillimeterX = 106.667;
+float StepsPerMillimeterY = 106.667;
 
 // Drawing robot limits, in mm
 // OK to start with. Could go up to 50 mm if calibrated well. 
-float Xmin = 0;
-float Xmax = 40;
+float Xmin = 0;   
+float Xmax = 39.6;
 float Ymin = 0;
-float Ymax = 40;
+float Ymax = 39.6;
 float Zmin = 0;
 float Zmax = 1;
 
@@ -67,33 +77,37 @@ float Zpos = Zmax;
 boolean verbose = false;
 
 //  Needs to interpret 
-//  G1 for moving
 //  G4 P300 (wait 150ms)
-//  M300 S30 (pen down)
-//  M300 S50 (pen up)
-//  Discard anything with a (
-//  Discard any other command!
 
 /**********************
- * void setup() - Initialisations
+ * void setup() - Initializations
  ***********************/
 void setup() {
   //  Setup
+  
   Serial.begin( 9600 );
   
   penServo.attach(penServoPin);
   penServo.write(penZUp);
-  delay(200);
+  delay(100);
+
+  //Giovani Modifications
+  pinMode(endStopX , INPUT);      //Define the endStops as Input
+  pinMode(endStopY , INPUT);
+  digitalWrite(endStopX, HIGH);   //Write High to inputs to use pull-up res
+  digitalWrite(endStopY, HIGH);  
 
   // Decrease if necessary
-  myStepperX.setSpeed(250);
-  myStepperY.setSpeed(250);  
+  myStepperX.setSpeed(128);
 
-  //  Set & move to initial default position
-  // TBD
+  myStepperY.setSpeed(128);
+  
+  //Giovani Modifications
+  //Set & move to initial default position
+  goToOrigin();
 
   //  Notifications!!!
-  Serial.println("Mini CNC Plotter alive and kicking!");
+  Serial.println("Mini CNC Plotter Giovani");
   Serial.print("X range is from "); 
   Serial.print(Xmin); 
   Serial.print(" to "); 
@@ -111,7 +125,8 @@ void setup() {
  ***********************/
 void loop() 
 {
-  delay(200);
+  
+  delay(100);
   char line[ LINE_BUFFER_LENGTH ];
   char c;
   int lineIndex;
@@ -141,7 +156,7 @@ void loop()
         }
         lineIsComment = false;
         lineSemiColon = false;
-        Serial.println("ok");    
+        Serial.println("ok"); 
       } 
       else {
         if ( (lineIsComment) || (lineSemiColon) ) {   // Throw away all comment characters
@@ -182,6 +197,7 @@ void processIncomingLine( char* line, int charNB ) {
 
   newPos.x = 0.0;
   newPos.y = 0.0;
+  newPos.z = 0.0;                   //Edit Giovani
 
   //  Needs to interpret 
   //  G1 for moving
@@ -213,18 +229,43 @@ void processIncomingLine( char* line, int charNB ) {
         // /!\ Dirty - Suppose that X is before Y
         char* indexX = strchr( line+currentIndex, 'X' );  // Get X/Y position in the string (if any)
         char* indexY = strchr( line+currentIndex, 'Y' );
+        
+        char* indexZ = strchr( line+currentIndex, 'Z' );  //Edit Giovani
+             
         if ( indexY <= 0 ) {
           newPos.x = atof( indexX + 1); 
           newPos.y = actuatorPos.y;
+
+          if ( indexZ > 0 ) {
+            newPos.z = atof( indexZ + 1);               //Edit Giovani
+              if (newPos.z < 0) {
+                penDown();
+              }
+              else {
+                penUp();
+              }
+           }
         } 
         else if ( indexX <= 0 ) {
           newPos.y = atof( indexY + 1);
           newPos.x = actuatorPos.x;
-        } 
+
+          if ( indexZ > 0 ) {
+            newPos.z = atof( indexZ + 1);               //Edit Giovani
+              if (newPos.z < 0) {
+                penDown();
+              }
+              else {
+                penUp();
+              }
+           }
+        }
+
         else {
           newPos.y = atof( indexY + 1);
           indexY = '\0';
           newPos.x = atof( indexX + 1);
+          
         }
         drawLine(newPos.x, newPos.y );
         //        Serial.println("ok");
@@ -243,7 +284,7 @@ void processIncomingLine( char* line, int charNB ) {
         {
           char* indexS = strchr( line+currentIndex, 'S' );
           float Spos = atof( indexS + 1);
-          //          Serial.println("ok");
+          //         Serial.println("ok");
           if (Spos == 30) { 
             penDown(); 
           }
@@ -258,17 +299,18 @@ void processIncomingLine( char* line, int charNB ) {
         Serial.print( "  -  Y = " );
         Serial.println( actuatorPos.y );
         break;
+      case 5:
+        myStepperX.release();
+        myStepperY.release();
+        Serial.println( "Motors released"); 
+        break;
       default:
         Serial.print( "Command not recognized : M");
         Serial.println( buffer );
       }
     }
   }
-
-
-
 }
-
 
 /*********************************
  * Draw a line from (x0;y0) to (x1;y1). 
@@ -320,8 +362,8 @@ void drawLine(float x1, float y1) {
   }
 
   //  Convert coordinates to steps
-  x1 = (int)(x1*StepsPerMillimeterX);
-  y1 = (int)(y1*StepsPerMillimeterY);
+  x1 = (int)(round(x1*StepsPerMillimeterX));
+  y1 = (int)(round(y1*StepsPerMillimeterY));
   float x0 = Xpos;
   float y0 = Ypos;
 
@@ -336,24 +378,26 @@ void drawLine(float x1, float y1) {
 
   if (dx > dy) {
     for (i=0; i<dx; ++i) {
-      myStepperX.step(sx);
+      myStepperX.onestep(sx,STEP);
       over+=dy;
       if (over>=dx) {
         over-=dx;
-        myStepperY.step(sy);
+        myStepperY.onestep(sy,STEP);
       }
-      delay(StepDelay);
+    //delay(StepDelay);
+    delayMicroseconds(StepDelay);
     }
   }
   else {
     for (i=0; i<dy; ++i) {
-      myStepperY.step(sy);
+      myStepperY.onestep(sy,STEP);
       over+=dx;
       if (over>=dy) {
         over-=dy;
-        myStepperX.step(sx);
+        myStepperX.onestep(sx,STEP);
       }
-      delay(StepDelay);
+      //delay(StepDelay);
+      delayMicroseconds(StepDelay);
     }    
   }
 
@@ -385,18 +429,89 @@ void drawLine(float x1, float y1) {
 //  Raises pen
 void penUp() { 
   penServo.write(penZUp); 
-  delay(LineDelay); 
+  delay(penDelay); 
   Zpos=Zmax; 
+  digitalWrite(15, LOW);
+    digitalWrite(16, HIGH);
   if (verbose) { 
     Serial.println("Pen up!"); 
+    
   } 
 }
 //  Lowers pen
 void penDown() { 
   penServo.write(penZDown); 
-  delay(LineDelay); 
+  delay(penDelay); 
   Zpos=Zmin; 
+  digitalWrite(15, HIGH);
+    digitalWrite(16, LOW);
   if (verbose) { 
     Serial.println("Pen down."); 
+    
+    
   } 
+}
+
+//Giovani Modifications
+void goToOrigin() {
+  //Set Pos to max;
+  Xpos = Xmax;
+  Ypos = Ymax;
+  //Set x & y move
+  float x1 = -Xmax;
+  float y1 = -Ymax;
+
+  //  Convert coordinates to steps
+  x1 = (int)(round(x1*StepsPerMillimeterX));
+  y1 = (int)(round(y1*StepsPerMillimeterY));
+  float x0 = Xpos;
+  float y0 = Ypos;
+
+  //  Let's find out the change for the coordinates
+  long dx = abs(x1-x0);
+  long dy = abs(y1-y0);
+  int sx = x0<x1 ? StepInc : -StepInc;
+  int sy = y0<y1 ? StepInc : -StepInc;
+
+  long i;
+  long over = 0;
+
+  if (dx > dy) {
+    for (i=0; i<dx; ++i) {
+      if (digitalRead(endStopX) == HIGH){
+        myStepperX.onestep(sx,STEP);
+      }
+      over+=dy;
+      if (over>=dx) {
+        over-=dx;
+        if (digitalRead(endStopY) == HIGH){
+          myStepperY.onestep(sy,STEP);
+        }
+      }
+    //delay(StepDelay);
+    delayMicroseconds(StepDelay);
+    }
+  }
+  else {
+    for (i=0; i<dy; ++i) {
+      if (digitalRead(endStopY) == HIGH){
+        myStepperY.onestep(sy,STEP);
+      }
+      over+=dx;
+      if (over>=dy) {
+        over-=dy;
+        if (digitalRead(endStopX) == HIGH){
+          myStepperX.onestep(sx,STEP);
+        }
+      }
+      //delay(StepDelay);
+      delayMicroseconds(StepDelay);
+    }    
+  }
+  //  Release motors
+  myStepperX.release();
+  myStepperY.release();
+  //  Update the positions
+  Xpos = 0;
+  Ypos = 0;
 }
