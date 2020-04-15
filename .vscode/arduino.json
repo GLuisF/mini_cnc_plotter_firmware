@@ -1,0 +1,5 @@
+{
+    "programmer": "AVRISP mkII",
+    "board": "arduino:avr:uno",
+    "sketch": "mini_cnc_plotter_firmware.ino"
+}

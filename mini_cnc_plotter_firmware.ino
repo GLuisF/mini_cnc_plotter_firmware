@@ -1,11 +1,11 @@
 
-/* 
- Mini CNC Plotter firmware, based in TinyCNC https://github.com/MakerBlock/TinyCNC-Sketches
- Send GCODE to this Sketch using gctrl.pde https://github.com/damellis/gctrl
- Convert SVG to GCODE with MakerBot Unicorn plugin for Inkscape available here https://github.com/martymcguire/inkscape-unicorn
- 
- More information about the Mini CNC Plotter here (german, sorry): http://www.makerblog.at/2015/02/projekt-mini-cnc-plotter-aus-alten-cddvd-laufwerken/
-  */
+//
+// Mini CNC Plotter firmware, based in TinyCNC https://github.com/MakerBlock/TinyCNC-Sketches
+// Send GCODE to this Sketch using gctrl.pde https://github.com/damellis/gctrl
+// Convert SVG to GCODE with MakerBot Unicorn plugin for Inkscape available here https://github.com/martymcguire/inkscape-unicorn
+// 
+// More information about the Mini CNC Plotter here (german, sorry): http://www.makerblog.at/2015/02/projekt-mini-cnc-plotter-aus-alten-cddvd-laufwerken/
+//
 
 #include <Servo.h>
 #include <AFMotor.h>                        //Modulo Adafruit Motor
@@ -99,7 +99,7 @@ void setup() {
 
   // Decrease if necessary
   myStepperX.setSpeed(128);
-
+  
   myStepperY.setSpeed(128);
   
   //Giovani Modifications
